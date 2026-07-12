@@ -32,9 +32,9 @@ export function CreatorForm() {
     defaultValues: {
       name: "",
       instagramHandle: "",
-      instagramFollowers: undefined,
+      instagramFollowers: "", // Change from undefined to empty string
       tiktokHandle: "",
-      tiktokFollowers: undefined,
+      tiktokFollowers: "",
       country: "Nigeria",
       state: "",
       gender: "",
@@ -195,20 +195,20 @@ export function CreatorForm() {
                   <div>
                     <Label className={`text-sm font-medium ${!igHandle || duplicateStatus.instagram ? "text-zinc-400" : ""}`}>Instagram Followers</Label>
                     <Input 
-                      type="number" 
+                
                       disabled={!igHandle || duplicateStatus.instagram} 
                       {...register("instagramFollowers")} 
-                      placeholder="e.g. 50000"
+                      placeholder="e.g. 50k, 1.2m"
                       className="mt-2 h-11 bg-zinc-50/50 focus-visible:ring-zinc-800 disabled:bg-zinc-100"
                     />
                   </div>
                   <div>
                     <Label className={`text-sm font-medium ${!ttHandle || duplicateStatus.tiktok ? "text-zinc-400" : ""}`}>TikTok Followers</Label>
                     <Input 
-                      type="number" 
+                      
                       disabled={!ttHandle || duplicateStatus.tiktok} 
                       {...register("tiktokFollowers")} 
-                      placeholder="e.g. 120000"
+                      placeholder="e.g. 120k, 2.5m"
                       className="mt-2 h-11 bg-zinc-50/50 focus-visible:ring-zinc-800 disabled:bg-zinc-100"
                     />
                   </div>

@@ -4,9 +4,9 @@ import { z } from "zod";
 export const creatorSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   instagramHandle: z.string().optional(),
-  instagramFollowers: z.coerce.number().optional(), // Coerce string inputs to numbers
+  instagramFollowers: z.string().optional(), // Changed to string to accept "10k"
   tiktokHandle: z.string().optional(),
-  tiktokFollowers: z.coerce.number().optional(),
+  tiktokFollowers: z.string().optional(), // Changed to string
   state: z.string().min(1, "State is required"),
   country: z.string().default("Nigeria"),
   gender: z.string().min(1, "Gender is required"),
@@ -16,18 +16,16 @@ export const creatorSchema = z.object({
     .max(4, "You can select a maximum of 4 secondary niches"),
   email: z.string().email("Invalid email address"),
 })
-// Rule 1: At least ONE handle must be provided
 .refine(data => data.instagramHandle || data.tiktokHandle, {
   message: "Either Instagram or TikTok handle must be provided",
   path: ["instagramHandle"] 
 })
-// Rule 2: If IG Handle exists, IG Followers are required
-.refine(data => !data.instagramHandle || (data.instagramHandle && data.instagramFollowers !== undefined && data.instagramFollowers > 0), {
+// Updated refine logic to check string length
+.refine(data => !data.instagramHandle || (data.instagramHandle && data.instagramFollowers && data.instagramFollowers.trim() !== ""), {
   message: "Instagram follower count is required",
   path: ["instagramFollowers"]
 })
-// Rule 3: If TikTok Handle exists, TikTok Followers are required
-.refine(data => !data.tiktokHandle || (data.tiktokHandle && data.tiktokFollowers !== undefined && data.tiktokFollowers > 0), {
+.refine(data => !data.tiktokHandle || (data.tiktokHandle && data.tiktokFollowers && data.tiktokFollowers.trim() !== ""), {
   message: "TikTok follower count is required",
   path: ["tiktokFollowers"]
 });
