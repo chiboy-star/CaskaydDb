@@ -11,7 +11,9 @@ export const creatorSchema = z.object({
   country: z.string().default("Nigeria"),
   gender: z.string().min(1, "Gender is required"),
   primaryNiche: z.string().min(1, "Primary niche is required"),
-  secondaryNiches: z.array(z.string()).min(1, "Select at least one secondary niche"),
+  secondaryNiches: z.array(z.string())
+    .min(1, "Select at least one secondary niche")
+    .max(4, "You can select a maximum of 4 secondary niches"),
   email: z.string().email("Invalid email address"),
 })
 // Rule 1: At least ONE handle must be provided

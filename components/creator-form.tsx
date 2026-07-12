@@ -50,6 +50,9 @@ export function CreatorForm() {
   const selectedPrimaryNiche = useWatch({ control, name: "primaryNiche" })
   const selectedState = useWatch({ control, name: "state" })
   const selectedSecondaryNiches = useWatch({ control, name: "secondaryNiches" })
+  const allAvailableNiches = React.useMemo(() => {
+    return Array.from(new Set(Object.values(NICHE_CATEGORIES).flat())).sort()
+  }, [])
 
   // Lock logic: Unlocks the rest of the form only if a handle is provided AND it's not a duplicate
   const hasValidHandle = 
@@ -117,7 +120,7 @@ export function CreatorForm() {
         
         {/* Header Section */}
         <div className="bg-zinc-900 px-8 py-6 border-b">
-          <h2 className="text-2xl font-bold tracking-tight text-white">Caskayd Registry</h2>
+          <h2 className="font-serif font-medium tracking-tight text-white text-3xl md:text-5xl drop-shadow-xl leading-tight">Caskayd Registry</h2>
         </div>
 
         <div className="p-8 space-y-10">
@@ -250,7 +253,7 @@ export function CreatorForm() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Primary Niche</Label>
                     <div className="h-11 [&>button]:h-11 [&>button]:bg-zinc-50/50 [&>button:focus]:ring-zinc-800">
@@ -259,22 +262,31 @@ export function CreatorForm() {
                         value={selectedPrimaryNiche}
                         onChange={(val) => {
                           setValue("primaryNiche", val, { shouldValidate: true })
-                          setValue("secondaryNiches", [])
+                          // Note: We no longer wipe secondary niches here!
                         }}
                         placeholder="Select Primary"
                       />
                     </div>
                   </div>
                   <div>
-                    <Label className={`text-sm font-medium mb-2 block ${!selectedPrimaryNiche ? "text-zinc-400" : ""}`}>Secondary Niches</Label>
+                    <Label className="text-sm font-medium mb-2 block">Secondary Niches (Max 4)</Label>
                     <div className="[&>button]:min-h-[44px] [&>button]:bg-zinc-50/50 [&>button:focus]:ring-zinc-800">
                       <SearchableMultiSelect 
-                        options={availableSecondaryNiches}
+                        // Filter out the primary niche so they can't pick it twice
+                        options={allAvailableNiches.filter(n => n !== selectedPrimaryNiche)}
                         selected={selectedSecondaryNiches || []}
-                        onChange={(val) => setValue("secondaryNiches", val, { shouldValidate: true })}
-                        placeholder={selectedPrimaryNiche ? "Add sub-categories" : "Pick primary first"}
-                        disabled={!selectedPrimaryNiche}
+                        onChange={(val) => {
+                          // Force the UI to cap at 4 selections
+                          if (val.length <= 4) {
+                            setValue("secondaryNiches", val, { shouldValidate: true })
+                          } else {
+                            toast.error("You can only select up to 4 secondary niches.")
+                          }
+                        }}
+                        placeholder="Add up to 4 sub-categories"
+                        disabled={false} // Always unlocked now
                       />
+                      {errors.secondaryNiches && <p className="text-xs text-red-500 mt-1">{errors.secondaryNiches.message}</p>}
                     </div>
                   </div>
                 </div>
