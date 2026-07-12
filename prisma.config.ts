@@ -1,9 +1,10 @@
 import 'dotenv/config';
-import { defineConfig, env } from 'prisma/config';
+import { defineConfig } from 'prisma/config';
 
 export default defineConfig({
   datasource: {
-    // Next.js runtime will use the pooled connection
-    url: env('DATABASE_URL'), 
+    // Uses your real DB if available, otherwise uses a dummy string 
+    // so Vercel can safely generate the types without crashing
+    url: process.env.DATABASE_URL || "postgresql://dummy:dummy@localhost:5432/dummy",
   },
 });
