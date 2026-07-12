@@ -13,11 +13,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 
 interface SearchableMultiSelectProps {
   options: string[]
@@ -35,6 +30,22 @@ export function SearchableMultiSelect({
   disabled = false,
 }: SearchableMultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  // Click outside listener
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    document.addEventListener("touchstart", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+      document.removeEventListener("touchstart", handleClickOutside)
+    }
+  }, [])
 
   const handleSelect = (item: string) => {
     const isSelected = selected.includes(item)
@@ -46,15 +57,15 @@ export function SearchableMultiSelect({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={false}>
-      <PopoverTrigger render={
-        <Button
-          variant="outline"
-          role="combobox"
-          className="w-full justify-between font-normal min-h-10 h-auto flex-wrap gap-1 text-left"
-          disabled={disabled}
-        />
-      }>
+    <div ref={containerRef} className="relative w-full">
+      <Button
+        type="button"
+        variant="outline"
+        role="combobox"
+        className="w-full justify-between font-normal min-h-10 h-auto flex-wrap gap-1 text-left"
+        disabled={disabled}
+        onClick={() => setOpen(!open)}
+      >
         {selected.length > 0 ? (
           <div className="flex flex-wrap gap-1 max-w-[90%]">
             {selected.map((item) => (
@@ -77,32 +88,38 @@ export function SearchableMultiSelect({
           placeholder
         )}
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 self-center" />
-      </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
-        <Command>
-          <CommandInput placeholder={`Search secondary options...`} />
-          <CommandList>
-            <CommandEmpty>No niches found.</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option}
-                  value={option}
-                  onSelect={() => handleSelect(option)}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      selected.includes(option) ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {option}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      </Button>
+
+      {open && (
+        <div className="absolute top-full left-0 z-50 w-full mt-2 rounded-md border bg-popover shadow-md outline-none animate-in fade-in-0 zoom-in-95">
+          <Command>
+            <CommandInput 
+              placeholder={`Search secondary options...`} 
+              autoFocus={false} 
+            />
+            <CommandList className="max-h-[250px] overflow-y-auto">
+              <CommandEmpty>No niches found.</CommandEmpty>
+              <CommandGroup>
+                {options.map((option) => (
+                  <CommandItem
+                    key={option}
+                    value={option}
+                    onSelect={() => handleSelect(option)}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selected.includes(option) ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    {option}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      )}
+    </div>
   )
 }
