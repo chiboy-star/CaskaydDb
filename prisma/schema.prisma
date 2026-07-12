@@ -1,0 +1,26 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js" // Changed this to the standard JS client
+}
+
+model Creator {
+  id                 String   @id @default(uuid())
+  name               String
+  instagramHandle    String?  @unique
+  instagramFollowers Int?
+  instagramTier      String? // e.g., "10k-50k"
+  tiktokHandle       String?  @unique
+  tiktokFollowers    Int?
+  tiktokTier         String? // e.g., "50k-100k"
+  country            String   @default("Nigeria")
+  state              String
+  gender             String
+  primaryNiche       String
+  secondaryNiches    String[] // Array of selected secondary niches
+  email              String   @unique
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
