@@ -9,7 +9,7 @@ export const NIGERIAN_STATES = [
 ];
 
 export const NICHE_CATEGORIES: Record<string, string[]> = {
-  "Lifestyle": ["Lifestyle", "Daily Life", "Luxury Lifestyle", "Minimalist Lifestyle", "Family Lifestyle", "Student Life", "Urban Lifestyle", "Rural Lifestyle"],
+  "Lifestyle": ["Lifestyle", "Daily Life", "Luxury Lifestyle", "Minimalist Lifestyle", "Family Lifestyle", "Student Life", "Urban Lifestyle", "Rural Lifestyle", "Career", "Corporate Life", "9-5 Life", "Work Life", "Day in the Life", "Adulting", "Productivity", "Self Improvement", "Personal Brand"],
   "Fashion": ["Fashion", "Streetwear", "Luxury Fashion", "Affordable Fashion", "Women's Fashion", "Men's Fashion", "Modest Fashion", "Traditional Fashion", "Footwear", "Accessories", "Jewelry", "Thrifting", "Personal Styling", "Outfit Inspiration"],
   "Beauty": ["Beauty", "Makeup", "Skincare", "Haircare", "Natural Hair", "Barbering", "Fragrance", "Nail Art", "Cosmetics", "Beauty Reviews"],
   "Food & Drinks": ["Food", "Recipes", "Cooking", "Baking", "Restaurant Reviews", "Street Food", "Fine Dining", "Coffee", "Tea", "Cocktails", "Wine", "Beer", "Healthy Eating", "Nutrition", "Meal Prep", "BBQ", "Desserts"],
@@ -26,6 +26,7 @@ export const NICHE_CATEGORIES: Record<string, string[]> = {
   "Travel": ["Travel", "Adventure", "Luxury Travel", "Budget Travel", "Hotels", "Airlines", "Road Trips", "Local Tourism", "Digital Nomad"],
   "Photography & Video": ["Photography", "Portrait Photography", "Street Photography", "Wildlife Photography", "Videography", "Drone", "Cinematography", "Photo Editing", "Video Editing"],
   "Automotive": ["Cars", "Motorcycles", "EVs", "Car Reviews", "Car Maintenance", "Motorsports"],
+  "Real Estate": ["Real Estate", "Apartment Tours", "House Tours", "Property Reviews", "Luxury Homes", "Luxury Apartments", "Interior Design", "Architecture", "Home Decor", "Property Showcase", "Commercial Real Estate", "Property Investment", "Short-let Reviews", "Airbnb Reviews", "Home Renovation", "Construction"],
   "Home": ["Interior Design", "Architecture", "Home Decor", "Furniture", "Gardening", "DIY", "Real Estate", "Home Renovation", "Cleaning", "Organization"],
   "Parenting": ["Parenting", "Motherhood", "Fatherhood", "Pregnancy", "Baby Care", "Family"],
   "Relationships": ["Dating", "Marriage", "Relationships", "Self Improvement", "Masculinity", "Femininity"],
