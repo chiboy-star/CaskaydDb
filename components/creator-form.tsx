@@ -293,15 +293,36 @@ export function CreatorForm() {
               </div>
 
               {/* Contact */}
+              {/* Contact & Tags */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">
                   <div className="h-6 w-1 bg-zinc-800 rounded-full"></div>
-                  <h3 className="text-lg font-semibold">4. Contact</h3>
+                  <h3 className="text-lg font-semibold">4. Contact & Metadata</h3>
                 </div>
-                <div>
-                  <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
-                  <Input id="email" type="email" {...register("email")} placeholder="contact@creator.com" className="mt-2 h-11 bg-zinc-50/50 focus-visible:ring-zinc-800" />
-                  {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <Label htmlFor="searchTags" className="text-sm font-medium">Search Tags</Label>
+                    <Input 
+                      id="searchTags" 
+                      {...register("searchTags")} 
+                      placeholder="e.g. comedy, lagos, gen-z" 
+                      className="mt-2 h-11 bg-zinc-50/50 focus-visible:ring-zinc-800" 
+                    />
+                    <p className="text-xs text-zinc-400 mt-1">Separate tags with commas.</p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="email" className="text-sm font-medium">Business Email</Label>
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      {...register("email")} 
+                      placeholder="contact@creator.com" 
+                      className="mt-2 h-11 bg-zinc-50/50 focus-visible:ring-zinc-800" 
+                    />
+                    {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
+                  </div>
                 </div>
               </div>
 
