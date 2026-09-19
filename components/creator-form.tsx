@@ -15,10 +15,25 @@ import { SearchableSelect } from "@/components/searchable-select"
 import { SearchableMultiSelect } from "@/components/searchable-multi-select"
 import { submitCreatorAction } from "@/app/actions"
 
+interface HandleStatus {
+  checked: boolean;
+  valid: boolean;
+  followers?: string;
+  name?: string;
+  message?: string;
+}
+
 export function CreatorForm() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [validatingHandles, setValidatingHandles] = React.useState({ instagram: false, tiktok: false })
   const [duplicateStatus, setDuplicateStatus] = React.useState({ instagram: false, tiktok: false })
+  const [handleValidation, setHandleValidation] = React.useState<{
+    instagram: HandleStatus;
+    tiktok: HandleStatus;
+  }>({
+    instagram: { checked: false, valid: false },
+    tiktok: { checked: false, valid: false },
+  })
 
   const {
     register,
@@ -26,13 +41,14 @@ export function CreatorForm() {
     setValue,
     control,
     formState: { errors },
-    reset
+    reset,
+    getValues
   } = useForm<CreatorFormValues>({
-    resolver: zodResolver(creatorSchema) as any, // <--- ADD "as any" HERE
+    resolver: zodResolver(creatorSchema) as any,
     defaultValues: {
       name: "",
       instagramHandle: "",
-      instagramFollowers: "", // Change from undefined to empty string
+      instagramFollowers: "",
       tiktokHandle: "",
       tiktokFollowers: "",
       country: "Nigeria",
@@ -54,31 +70,112 @@ export function CreatorForm() {
     return Array.from(new Set(Object.values(NICHE_CATEGORIES).flat())).sort()
   }, [])
 
-  // Lock logic: Unlocks the rest of the form only if a handle is provided AND it's not a duplicate
+  // Lock logic: Unlocks form if at least one handle is provided, valid, and not duplicate
   const hasValidHandle = 
-    (igHandle && igHandle.trim().length > 0 && !duplicateStatus.instagram) || 
-    (ttHandle && ttHandle.trim().length > 0 && !duplicateStatus.tiktok)
+    (igHandle && igHandle.trim().length > 0 && !duplicateStatus.instagram && (!handleValidation.instagram.checked || handleValidation.instagram.valid)) || 
+    (ttHandle && ttHandle.trim().length > 0 && !duplicateStatus.tiktok && (!handleValidation.tiktok.checked || handleValidation.tiktok.valid))
 
-  // Asynchronous duplicate verification logic
-  const verifyHandleUniqueness = async (platform: "instagram" | "tiktok", handle: string) => {
-    if (!handle || handle.trim() === "") {
+  // Real-time verification and auto-population
+  const verifyAndValidateHandle = async (platform: "instagram" | "tiktok", rawHandle: string) => {
+    if (!rawHandle || rawHandle.trim() === "") {
       setDuplicateStatus(prev => ({ ...prev, [platform]: false }))
+      setHandleValidation(prev => ({ ...prev, [platform]: { checked: false, valid: false } }))
       return
     }
 
+    const cleanHandle = rawHandle.replace("@", "").trim()
     setValidatingHandles(prev => ({ ...prev, [platform]: true }))
-    try {
-      const cleanHandle = handle.replace("@", "").trim()
-      const res = await fetch(`/api/check-handle?platform=${platform}&value=${cleanHandle}`)
-      const data = await res.json()
 
-      if (data.exists) {
+    try {
+      // 1. Check duplicate in local Caskayd database
+      const dupRes = await fetch(`/api/check-handle?platform=${platform}&value=${cleanHandle}`)
+      const dupData = await dupRes.json()
+
+      if (dupData.exists) {
         setDuplicateStatus(prev => ({ ...prev, [platform]: true }))
-        toast.error(`The ${platform === "instagram" ? "Instagram" : "TikTok"} creator handle is already in the database.`, {
-          description: "Duplicate entries are blocked to maintain database cleanliness.",
-        })
+        setHandleValidation(prev => ({
+          ...prev,
+          [platform]: {
+            checked: true,
+            valid: false,
+            message: `Handle @${cleanHandle} is already registered in Caskayd.`,
+          },
+        }))
+        toast.error(`The ${platform === "instagram" ? "Instagram" : "TikTok"} handle is already in the database.`)
+        return
       } else {
         setDuplicateStatus(prev => ({ ...prev, [platform]: false }))
+      }
+
+      // 2. Validate live social existence & fetch followers ($0 minimal endpoint)
+      const valRes = await fetch(`/api/validate-handle?platform=${platform}&value=${cleanHandle}`)
+      const valData = await valRes.json()
+
+      if (valData.exists) {
+        setHandleValidation(prev => ({
+          ...prev,
+          [platform]: {
+            checked: true,
+            valid: true,
+            followers: valData.followers,
+            name: valData.displayName,
+            message: `Found on ${platform === "instagram" ? "Instagram" : "TikTok"}: ${valData.displayName} (${valData.followers} followers)`,
+          },
+        }))
+
+        // Auto-populate followers
+        if (platform === "instagram" && valData.followers) {
+          setValue("instagramFollowers", valData.followers, { shouldValidate: true })
+        } else if (platform === "tiktok" && valData.followers) {
+          setValue("tiktokFollowers", valData.followers, { shouldValidate: true })
+        }
+
+        // Auto-populate creator name if currently empty
+        const currentName = getValues("name")
+        if (!currentName && valData.displayName && valData.displayName !== cleanHandle) {
+          setValue("name", valData.displayName, { shouldValidate: true })
+        }
+
+        // Auto-populate email if found in bio and field is empty
+        const currentEmail = getValues("email")
+        if (!currentEmail && valData.email) {
+          setValue("email", valData.email, { shouldValidate: true })
+        }
+
+        // Auto-populate primary niche if currently empty and bio matched one
+        const currentPrimaryNiche = getValues("primaryNiche")
+        if (!currentPrimaryNiche && valData.primaryNiche) {
+          setValue("primaryNiche", valData.primaryNiche, { shouldValidate: true })
+        }
+
+        // Auto-populate secondary niches (merge up to 4)
+        if (valData.secondaryNiches && valData.secondaryNiches.length > 0) {
+          const currentSecondary = getValues("secondaryNiches") || []
+          const merged = Array.from(new Set([...currentSecondary, ...valData.secondaryNiches])).slice(0, 4)
+          setValue("secondaryNiches", merged, { shouldValidate: true })
+        }
+
+        // Auto-populate search tags strictly from 1-to-1 bio words (merge unique)
+        if (valData.searchTags && valData.searchTags.length > 0) {
+          const currentTags = getValues("searchTags") || ""
+          const existingTagsList = currentTags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean)
+          const newTags = valData.searchTags.filter((t: string) => !existingTagsList.includes(t.toLowerCase()))
+          if (newTags.length > 0) {
+            const combined = existingTagsList.length > 0
+              ? (currentTags + ", " + newTags.join(", "))
+              : newTags.join(", ");
+            setValue("searchTags", combined, { shouldValidate: true })
+          }
+        }
+      } else {
+        setHandleValidation(prev => ({
+          ...prev,
+          [platform]: {
+            checked: true,
+            valid: false,
+            message: `Account "@${cleanHandle}" was not found on ${platform === "instagram" ? "Instagram" : "TikTok"}. Double check for typos!`,
+          },
+        }))
       }
     } catch (error) {
       console.error("Error validating handle:", error)
@@ -87,13 +184,9 @@ export function CreatorForm() {
     }
   }
 
-  // Get matching secondary options array based on selection
-  const availableSecondaryNiches = selectedPrimaryNiche ? NICHE_CATEGORIES[selectedPrimaryNiche] || [] : []
-
   const onSubmit = async (data: CreatorFormValues) => {
     setIsSubmitting(true)
     try {
-      // Clean handle signs before sending to server action
       if (data.instagramHandle) data.instagramHandle = data.instagramHandle.replace("@", "").trim()
       if (data.tiktokHandle) data.tiktokHandle = data.tiktokHandle.replace("@", "").trim()
 
@@ -104,6 +197,10 @@ export function CreatorForm() {
         })
         reset()
         setDuplicateStatus({ instagram: false, tiktok: false })
+        setHandleValidation({
+          instagram: { checked: false, valid: false },
+          tiktok: { checked: false, valid: false },
+        })
       } else {
         toast.error("Submission failed", { description: result.error })
       }
@@ -114,7 +211,7 @@ export function CreatorForm() {
     }
   }
 
- return (
+  return (
     <div className="w-full max-w-3xl mx-auto py-8">
       <form onSubmit={handleSubmit(onSubmit)} className="bg-background border border-border/40 rounded-2xl shadow-xl overflow-hidden">
         
@@ -133,12 +230,7 @@ export function CreatorForm() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="col-span-full md:col-span-2">
-                <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
-                <Input id="name" {...register("name")} placeholder="e.g. John Doe" className="mt-2 h-11 bg-zinc-50/50 focus-visible:ring-zinc-800" />
-                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
-              </div>
-
+              {/* Instagram Handle */}
               <div>
                 <Label htmlFor="instagramHandle" className="text-sm font-medium">Instagram Handle</Label>
                 <div className="relative mt-2">
@@ -147,13 +239,49 @@ export function CreatorForm() {
                     id="instagramHandle" 
                     {...register("instagramHandle")} 
                     placeholder="username"
-                    className={`pl-8 h-11 ${duplicateStatus.instagram ? "border-red-500 focus-visible:ring-red-500 bg-red-50" : "bg-zinc-50/50 focus-visible:ring-zinc-800"}`}
-                    onBlur={(e) => verifyHandleUniqueness("instagram", e.target.value)}
+                    className={`pl-8 pr-10 h-11 ${
+                      duplicateStatus.instagram || (handleValidation.instagram.checked && !handleValidation.instagram.valid)
+                        ? "border-red-400 focus-visible:ring-red-400 bg-red-50/40" 
+                        : handleValidation.instagram.checked && handleValidation.instagram.valid
+                        ? "border-emerald-400 focus-visible:ring-emerald-400 bg-emerald-50/20"
+                        : "bg-zinc-50/50 focus-visible:ring-zinc-800"
+                    }`}
+                    onBlur={(e) => verifyAndValidateHandle("instagram", e.target.value)}
                   />
+
+                  {/* Status Indicator Icon */}
+                  <div className="absolute right-3 top-3 flex items-center">
+                    {validatingHandles.instagram && (
+                      <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin"></div>
+                    )}
+                    {!validatingHandles.instagram && handleValidation.instagram.checked && (
+                      handleValidation.instagram.valid ? (
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold animate-in zoom-in duration-200 shadow-sm" title="Account verified">
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold animate-in zoom-in duration-200 shadow-sm" title="Account not found">
+                          ✕
+                        </span>
+                      )
+                    )}
+                  </div>
                 </div>
-                {validatingHandles.instagram && <p className="text-xs text-blue-500 mt-1 font-medium animate-pulse">Verifying handle...</p>}
+
+                {validatingHandles.instagram && (
+                  <p className="text-xs text-blue-500 mt-1.5 font-medium animate-pulse">Checking Instagram account...</p>
+                )}
+
+                {!validatingHandles.instagram && handleValidation.instagram.checked && (
+                  <p className={`text-xs mt-1.5 font-medium flex items-center gap-1.5 ${
+                    handleValidation.instagram.valid ? "text-emerald-600" : "text-rose-600"
+                  }`}>
+                    {handleValidation.instagram.valid ? "✓" : "⚠️"} {handleValidation.instagram.message}
+                  </p>
+                )}
               </div>
 
+              {/* TikTok Handle */}
               <div>
                 <Label htmlFor="tiktokHandle" className="text-sm font-medium">TikTok Handle</Label>
                 <div className="relative mt-2">
@@ -162,11 +290,52 @@ export function CreatorForm() {
                     id="tiktokHandle" 
                     {...register("tiktokHandle")} 
                     placeholder="username"
-                    className={`pl-8 h-11 ${duplicateStatus.tiktok ? "border-red-500 focus-visible:ring-red-500 bg-red-50" : "bg-zinc-50/50 focus-visible:ring-zinc-800"}`}
-                    onBlur={(e) => verifyHandleUniqueness("tiktok", e.target.value)}
+                    className={`pl-8 pr-10 h-11 ${
+                      duplicateStatus.tiktok || (handleValidation.tiktok.checked && !handleValidation.tiktok.valid)
+                        ? "border-red-400 focus-visible:ring-red-400 bg-red-50/40" 
+                        : handleValidation.tiktok.checked && handleValidation.tiktok.valid
+                        ? "border-emerald-400 focus-visible:ring-emerald-400 bg-emerald-50/20"
+                        : "bg-zinc-50/50 focus-visible:ring-zinc-800"
+                    }`}
+                    onBlur={(e) => verifyAndValidateHandle("tiktok", e.target.value)}
                   />
+
+                  {/* Status Indicator Icon */}
+                  <div className="absolute right-3 top-3 flex items-center">
+                    {validatingHandles.tiktok && (
+                      <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin"></div>
+                    )}
+                    {!validatingHandles.tiktok && handleValidation.tiktok.checked && (
+                      handleValidation.tiktok.valid ? (
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold animate-in zoom-in duration-200 shadow-sm" title="Account verified">
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold animate-in zoom-in duration-200 shadow-sm" title="Account not found">
+                          ✕
+                        </span>
+                      )
+                    )}
+                  </div>
                 </div>
-                {validatingHandles.tiktok && <p className="text-xs text-blue-500 mt-1 font-medium animate-pulse">Verifying handle...</p>}
+
+                {validatingHandles.tiktok && (
+                  <p className="text-xs text-blue-500 mt-1.5 font-medium animate-pulse">Checking TikTok account...</p>
+                )}
+
+                {!validatingHandles.tiktok && handleValidation.tiktok.checked && (
+                  <p className={`text-xs mt-1.5 font-medium flex items-center gap-1.5 ${
+                    handleValidation.tiktok.valid ? "text-emerald-600" : "text-rose-600"
+                  }`}>
+                    {handleValidation.tiktok.valid ? "✓" : "⚠️"} {handleValidation.tiktok.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="col-span-full md:col-span-2">
+                <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
+                <Input id="name" {...register("name")} placeholder="e.g. John Doe" className="mt-2 h-11 bg-zinc-50/50 focus-visible:ring-zinc-800" />
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
               </div>
             </div>
           </div>
@@ -178,7 +347,7 @@ export function CreatorForm() {
                 <div className="bg-white p-4 rounded-full shadow-sm mb-3">
                   <svg className="w-6 h-6 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                 </div>
-                <p className="text-sm font-medium text-zinc-600">Enter a unique social handle to unlock</p>
+                <p className="text-sm font-medium text-zinc-600">Enter a verified social handle to unlock form</p>
               </div>
             )}
 
@@ -195,7 +364,6 @@ export function CreatorForm() {
                   <div>
                     <Label className={`text-sm font-medium ${!igHandle || duplicateStatus.instagram ? "text-zinc-400" : ""}`}>Instagram Followers</Label>
                     <Input 
-                
                       disabled={!igHandle || duplicateStatus.instagram} 
                       {...register("instagramFollowers")} 
                       placeholder="e.g. 50k, 1.2m"
@@ -205,7 +373,6 @@ export function CreatorForm() {
                   <div>
                     <Label className={`text-sm font-medium ${!ttHandle || duplicateStatus.tiktok ? "text-zinc-400" : ""}`}>TikTok Followers</Label>
                     <Input 
-                      
                       disabled={!ttHandle || duplicateStatus.tiktok} 
                       {...register("tiktokFollowers")} 
                       placeholder="e.g. 120k, 2.5m"
@@ -225,8 +392,8 @@ export function CreatorForm() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Gender</Label>
-<Select onValueChange={(val: any) => setValue("gender", String(val), { shouldValidate: true })}>
-                           <SelectTrigger className="h-11 bg-zinc-50/50 focus:ring-zinc-800">
+                    <Select onValueChange={(val: any) => setValue("gender", String(val), { shouldValidate: true })}>
+                      <SelectTrigger className="h-11 bg-zinc-50/50 focus:ring-zinc-800">
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
                       <SelectContent>
@@ -253,7 +420,7 @@ export function CreatorForm() {
                   </div>
                 </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Primary Niche</Label>
                     <div className="h-11 [&>button]:h-11 [&>button]:bg-zinc-50/50 [&>button:focus]:ring-zinc-800">
@@ -262,7 +429,6 @@ export function CreatorForm() {
                         value={selectedPrimaryNiche}
                         onChange={(val) => {
                           setValue("primaryNiche", val, { shouldValidate: true })
-                          // Note: We no longer wipe secondary niches here!
                         }}
                         placeholder="Select Primary"
                       />
@@ -272,11 +438,9 @@ export function CreatorForm() {
                     <Label className="text-sm font-medium mb-2 block">Secondary Niches (Max 4)</Label>
                     <div className="[&>button]:min-h-[44px] [&>button]:bg-zinc-50/50 [&>button:focus]:ring-zinc-800">
                       <SearchableMultiSelect 
-                        // Filter out the primary niche so they can't pick it twice
                         options={allAvailableNiches.filter(n => n !== selectedPrimaryNiche)}
                         selected={selectedSecondaryNiches || []}
                         onChange={(val) => {
-                          // Force the UI to cap at 4 selections
                           if (val.length <= 4) {
                             setValue("secondaryNiches", val, { shouldValidate: true })
                           } else {
@@ -284,7 +448,7 @@ export function CreatorForm() {
                           }
                         }}
                         placeholder="Add up to 4 sub-categories"
-                        disabled={false} // Always unlocked now
+                        disabled={false}
                       />
                       {errors.secondaryNiches && <p className="text-xs text-red-500 mt-1">{errors.secondaryNiches.message}</p>}
                     </div>
@@ -292,8 +456,7 @@ export function CreatorForm() {
                 </div>
               </div>
 
-              {/* Contact */}
-              {/* Contact & Tags */}
+              {/* Contact & Metadata */}
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b pb-2">
                   <div className="h-6 w-1 bg-zinc-800 rounded-full"></div>
